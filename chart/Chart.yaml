@@ -1,0 +1,23 @@
+apiVersion: v2
+name: alethia-starter
+description: >-
+  A minimal-but-real bring-your-own Helm chart for Alethia. It renders only namespaced, non-RBAC
+  resources, which is the whole contract a BYO chart has to meet: Alethia deploys it under a
+  default-deny ArgoCD project that permits nothing else.
+type: application
+
+# The chart version and the app version are different things and move independently.
+# `version` is this chart's own semver — see CHANGELOG.md for what counts as a major.
+version: 1.0.0
+# `appVersion` is the thing being shipped. It is quoted because 1.29 is a float otherwise.
+appVersion: "1.29"
+
+keywords:
+  - alethia
+  - starter
+  - bring-your-own-chart
+home: https://github.com/alethialabs-io/alethia-starter-chart
+sources:
+  - https://github.com/alethialabs-io/alethia-starter-chart
+annotations:
+  alethia.io/trust-level: byo

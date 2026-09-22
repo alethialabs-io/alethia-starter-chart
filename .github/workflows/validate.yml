@@ -1,0 +1,119 @@
+name: Validate
+
+# Free, and it runs on every push. A BYO chart that breaks its contract does not fail at render
+# time — it fails its ArgoCD SYNC, in a cluster, minutes after a deploy that reported success.
+# Everything below asks the same questions offline, in seconds, with no cluster and no credential.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chart:
+    name: helm lint · template · BYO contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+
+      - name: helm lint
+        run: helm lint chart --strict
+
+      - name: helm template — defaults
+        run: helm template starter chart > /dev/null
+
+      - name: helm template — every documented option on
+        run: |
+          set -euo pipefail
+          helm template starter chart \
+            --set ingress.enabled=true \
+            --set ingress.host=starter.example.com \
+            --set ingress.className=nginx \
+            --set replicaCount=3 > /dev/null
+
+      - name: values.schema.json refuses an unknown key
+        run: |
+          set -euo pipefail
+          # The schema declares additionalProperties: false. That is only worth anything if it
+          # actually fires, and a schema that silently accepts everything looks identical to one
+          # that works — so this asserts the REFUSAL, not the acceptance.
+          if helm template starter chart --set thisKeyDoesNotExist=1 >/dev/null 2>&1; then
+            echo "::error::values.schema.json accepted an unknown key"
+            exit 1
+          fi
+          echo "unknown key refused, as intended"
+
+      - name: The BYO contract — defaults
+        run: hack/check-byo-contract.sh chart
+
+      - name: The BYO contract — with the Ingress on
+        run: hack/check-byo-contract.sh chart --set ingress.enabled=true --set ingress.host=starter.example.com
+
+      - name: The BYO contract check must FAIL on a chart that breaks the contract
+        run: |
+          set -euo pipefail
+          # The mutation control. Without it, a check that had stopped looking would report a pass
+          # on every run and read exactly like a working one — this repository's whole claim is
+          # that the check is load-bearing, so the check gets checked.
+          if hack/check-byo-contract.sh chart --set serviceAccount.create=true >/dev/null 2>&1; then
+            echo "::error::the contract check passed a render containing a ServiceAccount"
+            exit 1
+          fi
+          echo "contract check refused the ServiceAccount, as intended"
+
+      - name: Chart.yaml version and TEMPLATE_VERSION agree
+        run: |
+          set -euo pipefail
+          # Two files holding the same number is two chances to be wrong. This is the one that
+          # notices.
+          chart_v="$(grep -E '^version:' chart/Chart.yaml | awk '{print $2}')"
+          file_v="$(tr -d '[:space:]' < TEMPLATE_VERSION)"
+          echo "Chart.yaml=$chart_v TEMPLATE_VERSION=$file_v"
+          [ "$chart_v" = "$file_v" ] || {
+            echo "::error::chart/Chart.yaml version ($chart_v) != TEMPLATE_VERSION ($file_v)"
+            exit 1
+          }
+
+  version:
+    name: TEMPLATE_VERSION moves when the chart does
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only in the template's own home. A clone is someone else's repository with its own release
+    # discipline, and failing their first commit because they edited the chart we handed them
+    # would be a gate on the wrong thing.
+    if: github.repository_owner == 'alethialabs-io'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+        run: |
+          set -euo pipefail
+          base="${BASE:-$(git rev-parse HEAD^ 2>/dev/null || true)}"
+          if [ -z "$base" ]; then
+            echo "no base commit to compare against — nothing to check"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$base" HEAD)"
+          if ! echo "$changed" | grep -q '^chart/'; then
+            echo "the chart did not change"
+            exit 0
+          fi
+          echo "changed under chart/:"; echo "$changed" | grep '^chart/'
+          if echo "$changed" | grep -qx 'TEMPLATE_VERSION'; then
+            echo "TEMPLATE_VERSION moved"
+            exit 0
+          fi
+          echo "::error::the chart changed and TEMPLATE_VERSION did not — see CHANGELOG.md"
+          exit 1

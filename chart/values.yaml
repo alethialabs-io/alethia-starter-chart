@@ -1,0 +1,81 @@
+# Every value here is validated by values.schema.json. A change to that schema is a MAJOR version
+# bump for this chart — it is the interface, and a clone that set a key you removed stops rendering.
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  # Pinned, multi-architecture, no pull secret and no anonymous pull limit. The unprivileged
+  # variant listens on 8080 as UID 101, so the chart needs no privileged port and no
+  # securityContext exception.
+  repository: ghcr.io/nginx/nginx-unprivileged
+  tag: "1.29-alpine"
+  pullPolicy: IfNotPresent
+
+# Rendered into a ConfigMap and served as the index page. It is here so that the first thing you
+# change in this chart produces a visible difference in the cluster.
+page:
+  title: "Alethia bring-your-own chart"
+  message: "If you can read this, your own chart repository reached a cluster Alethia provisioned."
+
+service:
+  # ClusterIP, deliberately. `LoadBalancer` provisions a cloud load balancer — and bills for it —
+  # the moment someone installs this chart to see what it does.
+  type: ClusterIP
+  port: 80
+
+ingress:
+  # Off by default. An Ingress is namespaced and the BYO project permits it, but it needs an
+  # ingress controller in the cluster and a hostname you own.
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+  path: /
+  pathType: Prefix
+  tls: []
+
+serviceAccount:
+  # FALSE, AND IT IS NOT A STYLE CHOICE. The ArgoCD project Alethia applies to a BYO chart
+  # blacklists `ServiceAccount`, `Role` and `RoleBinding` even though all three are namespaced —
+  # a chart that could mint its own identity could grant itself more than the project allows.
+  # Setting this to `true` renders a resource the sync will refuse, and this repository's CI fails
+  # on it before you find out the slow way.
+  #
+  # Leave `name` empty to use the namespace's `default` ServiceAccount, or name one an
+  # administrator created for you out of band.
+  create: false
+  name: ""
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Applied to the pod and to the container. The defaults are the restricted Pod Security Standard,
+# which is what a cluster with `pod-security.kubernetes.io/enforce: restricted` on the namespace
+# requires — and refusing there is a failure mode with a genuinely unhelpful message.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 101
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

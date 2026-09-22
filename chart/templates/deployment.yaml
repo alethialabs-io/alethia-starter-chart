@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "alethia-starter.fullname" . }}
+  labels:
+    {{- include "alethia-starter.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "alethia-starter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Rolls the pods when the page changes. See configmap.yaml for why this is not optional.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "alethia-starter.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with (include "alethia-starter.serviceAccountName" .) }}
+      serviceAccountName: {{ . }}
+      {{- end }}
+      # The BYO project forbids this chart from creating a ServiceAccount, so there is no identity
+      # to hand a pod and no reason to mount one. Turning the mount off is also the right default
+      # on its own terms: a token in the filesystem of a workload that never calls the API server
+      # is a credential with no use and a blast radius.
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          # TCP probes, not HTTP ones. They assert what this chart is responsible for — the
+          # container is up and accepting connections — without depending on a path the image
+          # happens to serve today.
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: page
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+            # `readOnlyRootFilesystem: true` is in the defaults, so every path nginx writes to has
+            # to be a volume. Remove these and the container crash-loops with a permission error
+            # that names a temp directory and not the cause.
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+      volumes:
+        - name: page
+          configMap:
+            name: {{ include "alethia-starter.fullname" . }}
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

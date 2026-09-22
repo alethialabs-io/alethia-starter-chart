@@ -1,0 +1,15 @@
+{{ .Chart.Name }} {{ .Chart.Version }} is installed as {{ .Release.Name }} in {{ .Release.Namespace }}.
+
+Reach it:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "alethia-starter.fullname" . }} 8080:{{ .Values.service.port }}
+  open http://localhost:8080
+
+{{ if .Values.serviceAccount.create -}}
+WARNING: serviceAccount.create is true. Alethia's bring-your-own-chart ArgoCD project blacklists
+ServiceAccount, so this release will fail to sync there. Set it back to false and name an existing
+ServiceAccount in serviceAccount.name if the workload needs one.
+{{ end -}}
+{{- if eq .Values.service.type "LoadBalancer" -}}
+NOTE: service.type is LoadBalancer, which provisions — and bills for — a cloud load balancer.
+{{ end -}}

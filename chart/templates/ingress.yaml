@@ -1,0 +1,39 @@
+{{- if .Values.ingress.enabled }}
+{{- if not .Values.ingress.host }}
+{{- fail "ingress.enabled is true but ingress.host is empty — an Ingress with no host matches every request that reaches the controller" }}
+{{- end }}
+{{/*
+An Ingress is namespaced and is not RBAC, so the BYO project permits it. What it needs from OUTSIDE
+the chart is an ingress controller in the cluster and a hostname pointed at it, neither of which a
+chart can create — which is why this is off by default rather than on with a placeholder host.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "alethia-starter.fullname" . }}
+  labels:
+    {{- include "alethia-starter.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path }}
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "alethia-starter.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

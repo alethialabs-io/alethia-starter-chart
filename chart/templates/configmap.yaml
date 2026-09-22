@@ -1,0 +1,39 @@
+{{/*
+The page the Deployment serves. A ConfigMap is namespaced and not RBAC, so the BYO project permits
+it.
+
+The Deployment carries a checksum of this file's rendered content as a pod annotation, so editing
+the page rolls the pods. Without that a values change produces a new ConfigMap and pods that go on
+serving the old one — and the Application reports Synced and Healthy while showing you the wrong
+thing.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "alethia-starter.fullname" . }}
+  labels:
+    {{- include "alethia-starter.labels" . | nindent 4 }}
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{{ .Values.page.title }}</title>
+        <style>
+          body { font-family: ui-monospace, monospace; margin: 4rem auto; max-width: 42rem;
+                 line-height: 1.6; padding: 0 1rem; }
+          code { background: #f4f4f5; padding: 0.1rem 0.3rem; border-radius: 3px; }
+        </style>
+      </head>
+      <body>
+        <h1>{{ .Values.page.title }}</h1>
+        <p>{{ .Values.page.message }}</p>
+        <p>
+          Release <code>{{ .Release.Name }}</code> ·
+          namespace <code>{{ .Release.Namespace }}</code> ·
+          chart <code>{{ .Chart.Name }}-{{ .Chart.Version }}</code>
+        </p>
+      </body>
+    </html>
