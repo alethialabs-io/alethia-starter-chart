@@ -4,6 +4,8 @@ A minimal-but-real **bring-your-own Helm chart** for [Alethia](https://alethiala
 your own Git repository that Alethia installs as an add-on, under an ArgoCD project that confines
 it to its own namespace.
 
+## What it is
+
 It renders three resources — a Deployment, a Service and a ConfigMap — and every one of them is
 namespaced and not RBAC. That is not a coincidence, it is the contract, and
 `hack/check-byo-contract.sh` fails the build if a change ever breaks it.
@@ -18,17 +20,11 @@ hack/
   check-byo-contract.sh the contract, mechanised — run it against your own chart
 ```
 
-## Use it
+## Use this template
 
-1. **Use this template** to create your own repository.
-2. In Alethia: **Add-ons → Bring your own chart**.
-   - **Chart repository** — `https://github.com/<you>/<your-repo>`
-   - **Chart path** — `chart`
-   - **Ref** — `HEAD`, or a tag if you want deploys to be explicit
-3. Deploy. Alethia creates the namespace, registers a per-repository credential, applies the
-   hardened project, and applies the Application.
+**Use this template** to create your own repository.
 
-Locally, before any of that:
+Locally, before you connect it:
 
 ```bash
 helm lint chart --strict
@@ -36,7 +32,22 @@ helm template starter chart
 hack/check-byo-contract.sh chart
 ```
 
-## What your chart may create — the whole rule
+## Connect it in Alethia
+
+1. In Alethia: **Add-ons → Bring your own chart**.
+   - **Chart repository** — `https://github.com/<you>/<your-repo>`
+   - **Chart path** — `chart`
+   - **Ref** — `HEAD`, or a tag if you want deploys to be explicit
+2. Deploy. Alethia creates the namespace, registers a per-repository credential, applies the
+   hardened project, and applies the Application.
+
+The docs page that covers this template, and the other two:
+[Starter Templates](https://alethialabs.io/docs/console/design-project/starter-templates). Full
+contract: [Bring Your Own Charts](https://alethialabs.io/docs/concepts/bring-your-own-charts).
+
+## The contract
+
+### What your chart may create — the whole rule
 
 Alethia applies an ArgoCD `AppProject` per project that is **default-deny**:
 
@@ -57,7 +68,7 @@ repository, where the project is wide open — or request the capability as a ma
 [`alethia-starter-ai`](https://github.com/alethialabs-io/alethia-starter-ai) is the worked example
 of that split: KServe and Kueue on one side of the line, the workloads on the other.
 
-## `hack/check-byo-contract.sh`
+### `hack/check-byo-contract.sh`
 
 Point it at any chart, not just this one:
 
@@ -73,7 +84,7 @@ them — which is the direction that passes on exactly the regression it exists 
 It also refuses to report a pass on a render it could not read: an empty render, or one with no
 `kind:` in it, exits 2 rather than 0.
 
-## Sync behaviour, once it is installed
+### Sync behaviour, once it is installed
 
 Two things Alethia deliberately does **not** do to your chart:
 
@@ -88,19 +99,23 @@ commit, delete the edited resource, or sync the Application from ArgoCD directly
 **A push to the tracked ref deploys.** Attach a tag or a commit SHA instead of a branch if you want
 a release step.
 
-## Versioning
-
-`TEMPLATE_VERSION` and `chart/Chart.yaml`'s `version` hold the same semver, and CI fails if they
-disagree or if the chart changes without one of them moving. A **values-schema change is a major**
-— see CHANGELOG.md.
-
-## CI
+### CI
 
 `.github/workflows/validate.yml`, on every push, free: `helm lint --strict`, `helm template` with
 the defaults and with every documented option on, an assertion that `values.schema.json` actually
 refuses an unknown key, the contract check, and — the part that matters — an assertion that the
 contract check **fails** on a chart that breaks the contract. A check that had quietly stopped
 looking would otherwise report a pass on every run and read exactly like a working one.
+
+## Versioning
+
+`TEMPLATE_VERSION` and `chart/Chart.yaml`'s `version` hold the same semver, and CI fails if they
+disagree or if the chart changes without one of them moving. A **values-schema change is a major**
+— see [`CHANGELOG.md`](./CHANGELOG.md).
+
+## Licence
+
+Apache-2.0. See [`LICENSE`](./LICENSE) and [`NOTICE`](./NOTICE).
 
 ## The other starter templates
 
@@ -110,5 +125,3 @@ looking would otherwise report a pass on every run and read exactly like a worki
 | [`alethia-starter-chart`](https://github.com/alethialabs-io/alethia-starter-chart) | this one |
 | [`alethia-starter-ai`](https://github.com/alethialabs-io/alethia-starter-ai) | RAG, a vector DB, CPU model serving and batch queueing, split across both trust levels |
 | [`alethia-examples`](https://github.com/alethialabs-io/alethia-examples) | larger worked references, including the isolation ladder |
-
-Full contract: [Bring Your Own Charts](https://alethialabs.io/docs/concepts/bring-your-own-charts).
